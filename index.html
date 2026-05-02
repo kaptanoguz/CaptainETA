@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Captain ETA — Modern Maritime Command</title>
+<meta name="description" content="Next-gen maritime ETA calculator with atmospheric bridge aesthetics.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* --- DESIGN.MD TOKENS --- */
+:root {
+    --primary: #0A192F;
+    --secondary: #112240;
+    --accent: #64FFDA;
+    --highlight: #FBD38D;
+    --surface: rgba(17, 34, 64, 0.7);
+    --border: rgba(100, 255, 218, 0.1);
+    --text-main: #CCD6F6;
+    --text-muted: #8892B0;
+    --text-heading: #E6F1FF;
+    --error: #F56565;
+    --font-ui: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --blur: 20px;
+    --shadow: 0 20px 50px rgba(2, 12, 27, 0.7);
+    --transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: var(--font-ui);
+    color: var(--text-main);
+    background: var(--primary);
+    background-image: 
+        radial-gradient(circle at 10% 10%, rgba(100, 255, 218, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(251, 211, 141, 0.05) 0%, transparent 40%);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* --- LAYOUT --- */
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    padding: 1.5rem;
+    background: var(--surface);
+    backdrop-filter: blur(var(--blur));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.brand-icon {
+    font-size: 2.5rem;
+    filter: drop-shadow(0 0 10px var(--accent));
+}
+
+.brand h1 {
+    font-size: 1.5rem;
+    color: var(--text-heading);
+    letter-spacing: 1px;
+}
+
+.brand span {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 2px;
+}
+
+.utc-display {
+    text-align: right;
+}
+
+.utc-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+}
+
+.utc-clock {
+    font-family: var(--font-mono);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--highlight);
+    text-shadow: 0 0 15px rgba(251, 211, 141, 0.3);
+}
+
+/* --- NAVIGATION --- */
+.nav-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.nav-btn {
+    padding: 0.8rem 2rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: var(--transition);
+}
+
+.nav-btn.active {
+    background: var(--accent);
+    color: var(--primary);
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
+}
+
+.nav-btn:hover:not(.active) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* --- DASHBOARD --- */
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+}
+
+.panel {
+    background: var(--surface);
+    backdrop-filter: blur(var(--blur));
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+}
+
+.panel-voyage { grid-column: span 4; }
+.panel-params { grid-column: span 5; }
+.panel-results { grid-column: span 3; }
+
+.panel-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* --- FORMS --- */
+.input-group {
+    margin-bottom: 1.5rem;
+}
+
+label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+input {
+    width: 100%;
+    background: rgba(10, 25, 47, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    transition: var(--transition);
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(100, 255, 218, 0.1);
+}
+
+.stepper {
+    display: flex;
+    align-items: center;
+}
+
+.step-btn {
+    width: 40px;
+    height: 44px;
+    background: var(--secondary);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.step-btn:hover {
+    background: var(--accent);
+    color: var(--primary);
+}
+
+.step-btn:first-child { border-radius: 8px 0 0 8px; }
+.step-btn:last-child { border-radius: 0 8px 8px 0; }
+
+.stepper input {
+    border-radius: 0;
+    text-align: center;
+    border-left: none;
+    border-right: none;
+}
+
+/* --- AUTOCOMPLETE --- */
+.ac-container { position: relative; }
+.ac-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--secondary);
+    border: 1px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+}
+
+.ac-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.ac-item:hover { background: var(--border); color: var(--accent); }
+
+/* --- RESULTS --- */
+.result-display {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.res-card {
+    padding: 1.5rem;
+    background: rgba(100, 255, 218, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    text-align: center;
+}
+
+.res-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.res-value {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-heading);
+}
+
+.res-value.large {
+    font-size: 1.8rem;
+    color: var(--highlight);
+}
+
+.action-row {
+    grid-column: span 12;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 1rem 2.5rem;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: var(--primary);
+    border: none;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(100, 255, 218, 0.2);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+
+.btn-secondary:hover {
+    background: rgba(100, 255, 218, 0.1);
+}
+
+/* --- TABLES --- */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+}
+
+th {
+    text-align: left;
+    padding: 1rem;
+    color: var(--accent);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    padding: 1rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+
+tr:hover td {
+    background: rgba(100, 255, 218, 0.02);
+}
+
+.warning {
+    color: var(--error);
+    font-size: 0.75rem;
+    margin-top: 1rem;
+    display: none;
+    text-align: center;
+}
+
+.view { display: none; }
+.view.active { display: block; animation: fadeIn 0.5s ease-out; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+footer {
+    text-align: center;
+    margin-top: 4rem;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+@media (max-width: 1200px) {
+    .panel-voyage, .panel-params { grid-column: span 6; }
+    .panel-results { grid-column: span 12; }
+}
+
+@media (max-width: 768px) {
+    .panel { grid-column: span 12; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div class="brand">
+            <div class="brand-icon">⚓</div>
+            <div>
+                <h1>Captain ETA</h1>
+                <span>Precision Navigation Terminal</span>
+            </div>
+        </div>
+        <div class="utc-display">
+            <div class="utc-label">System Time UTC</div>
+            <div class="utc-clock" id="utcClock">--:--:--</div>
+        </div>
+    </header>
+
+    <div class="nav-bar">
+        <button class="nav-btn active" onclick="switchView('calc')">Voyage Planning</button>
+        <button class="nav-btn" onclick="switchView('saved')">Saved Voyages</button>
+    </div>
+
+    <!-- CALCULATOR VIEW -->
+    <div class="view active" id="viewCalc">
+        <div class="dashboard">
+            <div class="panel panel-voyage">
+                <div class="panel-title">Voyage Info</div>
+                <div class="input-group">
+                    <label>Voyage Reference</label>
+                    <input type="text" id="voyageNo" placeholder="VOY-2026-X">
+                </div>
+                <div class="input-group ac-container">
+                    <label>Departure Port</label>
+                    <input type="text" id="loadPort" placeholder="Start typing...">
+                    <div class="ac-list" id="acLoad"></div>
+                </div>
+                <div class="input-group ac-container">
+                    <label>Arrival Port</label>
+                    <input type="text" id="dischPort" placeholder="Start typing...">
+                    <div class="ac-list" id="acDisch"></div>
+                </div>
+                <div id="autoDist" style="font-size: 0.7rem; color: var(--accent); margin-top: -1rem; margin-bottom: 1rem;"></div>
+            </div>
+
+            <div class="panel panel-params">
+                <div class="panel-title">Telemetry Parameters</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="input-group">
+                        <label>Distance (NM)</label>
+                        <div class="stepper">
+                            <button class="step-btn" onclick="step('distance',-10)">-</button>
+                            <input type="number" id="distance" value="0">
+                            <button class="step-btn" onclick="step('distance',10)">+</button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Target Speed (KTS)</label>
+                        <div class="stepper">
+                            <button class="step-btn" onclick="step('speed',-0.5)">-</button>
+                            <input type="number" id="speed" value="12.0" step="0.1">
+                            <button class="step-btn" onclick="step('speed',0.5)">+</button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Departure Time (UTC)</label>
+                        <input type="datetime-local" id="departure">
+                    </div>
+                    <div class="input-group">
+                        <label>TZ Offset (HRS)</label>
+                        <div class="stepper">
+                            <button class="step-btn" onclick="step('tzOffset',-1)">-</button>
+                            <input type="number" id="tzOffset" value="0">
+                            <button class="step-btn" onclick="step('tzOffset',1)">+</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Weather / Sea State Margin (%)</label>
+                    <div class="stepper">
+                        <button class="step-btn" onclick="step('weatherDelay',-1)">-</button>
+                        <input type="number" id="weatherDelay" value="0">
+                        <button class="step-btn" onclick="step('weatherDelay',1)">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel panel-results">
+                <div class="panel-title">Voyage ETA</div>
+                <div class="result-display">
+                    <div class="res-card">
+                        <div class="res-label">Duration</div>
+                        <div class="res-value" id="resDuration">—</div>
+                    </div>
+                    <div class="res-card">
+                        <div class="res-label">ETA UTC</div>
+                        <div class="res-value large" id="resEtaUtc">—</div>
+                    </div>
+                    <div class="res-card">
+                        <div class="res-label">ETA Local</div>
+                        <div class="res-value large" id="resEtaLocal">—</div>
+                    </div>
+                    <div class="warning" id="warning">Enter valid distance and speed.</div>
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button class="btn btn-primary" onclick="saveVoyage()">Secure Voyage</button>
+                <button class="btn btn-secondary" onclick="resetAll()">Reset Terminal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVED VOYAGES VIEW -->
+    <div class="view" id="viewSaved">
+        <div class="panel" style="grid-column: span 12;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <div class="panel-title" style="margin-bottom: 0;">Voyage Records</div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="nav-btn" onclick="exportPDF()" style="padding: 0.5rem 1rem; font-size: 0.7rem;">PDF Export</button>
+                    <button class="nav-btn" onclick="exportXLSX()" style="padding: 0.5rem 1rem; font-size: 0.7rem;">Excel Export</button>
+                    <button class="nav-btn" onclick="clearAll()" style="padding: 0.5rem 1rem; font-size: 0.7rem; border-color: var(--error); color: var(--error);">Clear All</button>
+                </div>
+            </div>
+            <div class="table-container" id="svTableWrap">
+                <!-- Table rendered by JS -->
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        ⚓ Captain ETA Calculator • Safe Voyages • System Status: Nominal
+    </footer>
+</div>
+
+<script>
+/* --- CORE LOGIC (Preserved and cleaned) --- */
+const PORTS=["Istanbul, Turkey","Ambarli, Turkey","Izmir, Turkey","Mersin, Turkey","Iskenderun, Turkey","Canakkale, Turkey","Piraeus, Greece","Thessaloniki, Greece","Volos, Greece","Constanta, Romania","Varna, Bulgaria","Burgas, Bulgaria","Odessa, Ukraine","Novorossiysk, Russia","Limassol, Cyprus","Haifa, Israel","Ashdod, Israel","Beirut, Lebanon","Latakia, Syria","Alexandria, Egypt","Port Said, Egypt","Damietta, Egypt","Valletta, Malta","Marsaxlokk, Malta","Genoa, Italy","Livorno, Italy","Naples, Italy","Trieste, Italy","Venice, Italy","Ravenna, Italy","Gioia Tauro, Italy","Augusta, Italy","Taranto, Italy","La Spezia, Italy","Cagliari, Italy","Barcelona, Spain","Valencia, Spain","Algeciras, Spain","Cartagena, Spain","Bilbao, Spain","Tarragona, Spain","Marseille, France","Le Havre, France","Dunkirk, France","Fos-sur-Mer, France","Rotterdam, Netherlands","Amsterdam, Netherlands","Antwerp, Belgium","Zeebrugge, Belgium","Hamburg, Germany","Bremerhaven, Germany","Wilhelmshaven, Germany","London, UK","Southampton, UK","Felixstowe, UK","Liverpool, UK","Immingham, UK","Lisbon, Portugal","Sines, Portugal","Leixoes, Portugal","Gibraltar","Tangier Med, Morocco","Casablanca, Morocco","Algiers, Algeria","Oran, Algeria","Tunis, Tunisia","Sfax, Tunisia","Rijeka, Croatia","Koper, Slovenia","Split, Croatia","Dubrovnik, Croatia","Bar, Montenegro","Durres, Albania","Gdansk, Poland","Gdynia, Poland","Gothenburg, Sweden","Malmo, Sweden","Copenhagen, Denmark","Aarhus, Denmark","Helsinki, Finland","Tallinn, Estonia","Riga, Latvia","St. Petersburg, Russia"];
+const DIST={};
+function addD(a,b,d){const k=[a,b].sort().join('|');DIST[k]=d}
+addD("Istanbul, Turkey","Rotterdam, Netherlands",3150);addD("Istanbul, Turkey","Hamburg, Germany",3400);addD("Istanbul, Turkey","Antwerp, Belgium",3200);addD("Istanbul, Turkey","Piraeus, Greece",340);addD("Istanbul, Turkey","Genoa, Italy",1310);addD("Istanbul, Turkey","Barcelona, Spain",1530);addD("Istanbul, Turkey","Marseille, France",1440);addD("Istanbul, Turkey","Valencia, Spain",1660);addD("Istanbul, Turkey","Algeciras, Spain",1770);addD("Istanbul, Turkey","Gibraltar",1780);addD("Istanbul, Turkey","Mersin, Turkey",580);addD("Istanbul, Turkey","Izmir, Turkey",280);addD("Istanbul, Turkey","Constanta, Romania",260);addD("Istanbul, Turkey","Odessa, Ukraine",520);addD("Istanbul, Turkey","Novorossiysk, Russia",640);addD("Istanbul, Turkey","Limassol, Cyprus",560);addD("Istanbul, Turkey","Haifa, Israel",720);addD("Istanbul, Turkey","Alexandria, Egypt",780);addD("Istanbul, Turkey","Port Said, Egypt",760);addD("Istanbul, Turkey","Valletta, Malta",960);addD("Istanbul, Turkey","Naples, Italy",1060);addD("Istanbul, Turkey","Trieste, Italy",1310);addD("Istanbul, Turkey","London, UK",3300);addD("Istanbul, Turkey","Le Havre, France",3280);addD("Istanbul, Turkey","Lisbon, Portugal",2200);addD("Istanbul, Turkey","Casablanca, Morocco",2350);addD("Istanbul, Turkey","Southampton, UK",3280);addD("Istanbul, Turkey","Thessaloniki, Greece",320);addD("Istanbul, Turkey","Gioia Tauro, Italy",940);addD("Istanbul, Turkey","Tangier Med, Morocco",1790);addD("Istanbul, Turkey","Tunis, Tunisia",1020);addD("Istanbul, Turkey","Beirut, Lebanon",680);addD("Istanbul, Turkey","Livorno, Italy",1270);addD("Piraeus, Greece","Rotterdam, Netherlands",3050);addD("Piraeus, Greece","Genoa, Italy",1000);addD("Piraeus, Greece","Marseille, France",1100);addD("Piraeus, Greece","Barcelona, Spain",1200);addD("Piraeus, Greece","Valencia, Spain",1350);addD("Piraeus, Greece","Algeciras, Spain",1440);addD("Piraeus, Greece","Gibraltar",1450);addD("Piraeus, Greece","Valletta, Malta",540);addD("Piraeus, Greece","Naples, Italy",700);addD("Piraeus, Greece","Port Said, Egypt",560);addD("Piraeus, Greece","Limassol, Cyprus",520);addD("Piraeus, Greece","Haifa, Israel",660);addD("Piraeus, Greece","Alexandria, Egypt",610);addD("Piraeus, Greece","Trieste, Italy",950);addD("Piraeus, Greece","Gioia Tauro, Italy",510);addD("Piraeus, Greece","Mersin, Turkey",570);addD("Genoa, Italy","Rotterdam, Netherlands",2300);addD("Genoa, Italy","Hamburg, Germany",2550);addD("Genoa, Italy","Barcelona, Spain",380);addD("Genoa, Italy","Marseille, France",210);addD("Genoa, Italy","Valencia, Spain",530);addD("Genoa, Italy","Algeciras, Spain",900);addD("Genoa, Italy","Gibraltar",910);addD("Genoa, Italy","Naples, Italy",330);addD("Genoa, Italy","Livorno, Italy",100);addD("Genoa, Italy","Valletta, Malta",650);addD("Genoa, Italy","Port Said, Egypt",1630);addD("Genoa, Italy","Trieste, Italy",560);addD("Rotterdam, Netherlands","Hamburg, Germany",280);addD("Rotterdam, Netherlands","Antwerp, Belgium",80);addD("Rotterdam, Netherlands","Le Havre, France",260);addD("Rotterdam, Netherlands","London, UK",210);addD("Rotterdam, Netherlands","Felixstowe, UK",160);addD("Rotterdam, Netherlands","Southampton, UK",260);addD("Rotterdam, Netherlands","Lisbon, Portugal",1050);addD("Rotterdam, Netherlands","Gibraltar",1350);addD("Rotterdam, Netherlands","Barcelona, Spain",1770);addD("Rotterdam, Netherlands","Algeciras, Spain",1440);addD("Rotterdam, Netherlands","Marseille, France",1840);addD("Rotterdam, Netherlands","Genoa, Italy",2300);addD("Rotterdam, Netherlands","Gdansk, Poland",660);addD("Rotterdam, Netherlands","Gothenburg, Sweden",500);addD("Rotterdam, Netherlands","Casablanca, Morocco",1550);addD("Rotterdam, Netherlands","Bilbao, Spain",730);addD("Rotterdam, Netherlands","Valletta, Malta",2200);addD("Rotterdam, Netherlands","Port Said, Egypt",3300);addD("Hamburg, Germany","Antwerp, Belgium",340);addD("Hamburg, Germany","London, UK",430);addD("Hamburg, Germany","Le Havre, France",480);addD("Hamburg, Germany","Gdansk, Poland",400);addD("Hamburg, Germany","Gothenburg, Sweden",340);addD("Hamburg, Germany","Copenhagen, Denmark",340);addD("Hamburg, Germany","Helsinki, Finland",1100);addD("Hamburg, Germany","St. Petersburg, Russia",1250);addD("Hamburg, Germany","Felixstowe, UK",380);addD("Barcelona, Spain","Marseille, France",200);addD("Barcelona, Spain","Valencia, Spain",170);addD("Barcelona, Spain","Algeciras, Spain",520);addD("Barcelona, Spain","Gibraltar",530);addD("Barcelona, Spain","Valletta, Malta",690);addD("Barcelona, Spain","Genoa, Italy",380);addD("Barcelona, Spain","Naples, Italy",750);addD("Marseille, France","Valencia, Spain",370);addD("Marseille, France","Algeciras, Spain",800);addD("Marseille, France","Gibraltar",810);addD("Marseille, France","Valletta, Malta",690);addD("Valencia, Spain","Algeciras, Spain",350);addD("Algeciras, Spain","Tangier Med, Morocco",15);addD("Algeciras, Spain","Casablanca, Morocco",220);addD("Gibraltar","Tangier Med, Morocco",18);addD("Gibraltar","Casablanca, Morocco",220);addD("Gibraltar","Lisbon, Portugal",280);addD("Lisbon, Portugal","Casablanca, Morocco",340);addD("Lisbon, Portugal","Le Havre, France",770);addD("Lisbon, Portugal","Bilbao, Spain",540);addD("Valletta, Malta","Gioia Tauro, Italy",210);addD("Valletta, Malta","Naples, Italy",370);addD("Valletta, Malta","Port Said, Egypt",940);addD("Valletta, Malta","Tunis, Tunisia",180);addD("Valletta, Malta","Tripoli, Libya",220);addD("Port Said, Egypt","Haifa, Israel",180);addD("Port Said, Egypt","Beirut, Lebanon",210);addD("Port Said, Egypt","Limassol, Cyprus",220);addD("Port Said, Egypt","Alexandria, Egypt",130);addD("Port Said, Egypt","Mersin, Turkey",340);addD("Haifa, Israel","Limassol, Cyprus",210);addD("Haifa, Israel","Beirut, Lebanon",120);addD("Haifa, Israel","Mersin, Turkey",270);addD("Constanta, Romania","Odessa, Ukraine",290);addD("Constanta, Romania","Novorossiysk, Russia",530);addD("Izmir, Turkey","Piraeus, Greece",170);addD("Izmir, Turkey","Mersin, Turkey",490);addD("Mersin, Turkey","Limassol, Cyprus",150);addD("Mersin, Turkey","Beirut, Lebanon",190);addD("Trieste, Italy","Venice, Italy",60);addD("Trieste, Italy","Rijeka, Croatia",80);addD("Trieste, Italy","Koper, Slovenia",15);addD("Naples, Italy","Gioia Tauro, Italy",180);addD("Naples, Italy","Livorno, Italy",260);addD("London, UK","Southampton, UK",180);addD("London, UK","Felixstowe, UK",100);addD("London, UK","Antwerp, Belgium",195);addD("Le Havre, France","Antwerp, Belgium",230);addD("Gdansk, Poland","Gothenburg, Sweden",400);addD("Gdansk, Poland","Copenhagen, Denmark",370);addD("Gdansk, Poland","Helsinki, Finland",550);addD("Gdansk, Poland","St. Petersburg, Russia",660);addD("Gothenburg, Sweden","Copenhagen, Denmark",160);addD("Helsinki, Finland","St. Petersburg, Russia",180);addD("Helsinki, Finland","Tallinn, Estonia",50);
+
+function getDist(a,b){const k=[a,b].sort().join('|');return DIST[k]||null}
+
+function tick(){const n=new Date();document.getElementById('utcClock').textContent=n.getUTCHours().toString().padStart(2,'0')+':'+n.getUTCMinutes().toString().padStart(2,'0')+':'+n.getUTCSeconds().toString().padStart(2,'0')}
+setInterval(tick,1000);tick();
+(function(){const n=new Date();document.getElementById('departure').value=new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,16)})();
+
+function setupAC(inputId,listId){
+  const inp=document.getElementById(inputId),list=document.getElementById(listId);
+  inp.addEventListener('input',function(){
+    const v=this.value.toLowerCase();
+    if(v.length<1){list.style.display='none';return}
+    const matches=PORTS.filter(p=>p.toLowerCase().includes(v)).slice(0,10);
+    if(!matches.length){list.style.display='none';return}
+    list.innerHTML=matches.map(p=>`<div class="ac-item" data-val="${p}">${p}</div>`).join('');
+    list.style.display='block';
+    list.querySelectorAll('.ac-item').forEach(el=>{
+      el.onclick=()=>{inp.value=el.dataset.val;list.style.display='none';tryAutoDist();calculate()}
+    });
+  });
+  document.addEventListener('click',e=>{if(e.target!==inp)list.style.display='none'});
+}
+setupAC('loadPort','acLoad');setupAC('dischPort','acDisch');
+
+function tryAutoDist(){
+  const a=document.getElementById('loadPort').value,b=document.getElementById('dischPort').value;
+  const d=getDist(a,b),el=document.getElementById('autoDist');
+  if(d){document.getElementById('distance').value=d;el.textContent='✓ Distance synchronized: '+d+' NM'}
+  else{el.textContent=''}
+  calculate();
+}
+
+function step(id,delta){const el=document.getElementById(id);let v=parseFloat(el.value)||0;v=Math.round((v+delta)*100)/100;el.value=v;calculate()}
+
+function fmtDate(d){const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getUTCDate().toString().padStart(2,'0')+' '+m[d.getUTCMonth()]+' '+d.getUTCFullYear()+' '+d.getUTCHours().toString().padStart(2,'0')+':'+d.getUTCMinutes().toString().padStart(2,'0')}
+
+function calculate(){
+  const dist=parseFloat(document.getElementById('distance').value)||0,spd=parseFloat(document.getElementById('speed').value)||0;
+  const dep=document.getElementById('departure').value,tz=parseFloat(document.getElementById('tzOffset').value)||0,wd=parseFloat(document.getElementById('weatherDelay').value)||0;
+  const warn=document.getElementById('warning');
+  if(dist<=0||spd<=0){warn.style.display='block';return}
+  warn.style.display='none';
+  const totalMin=Math.round(dist/spd*(1+wd/100)*60);
+  const d=Math.floor(totalMin/1440),h=Math.floor((totalMin%1440)/60),m=totalMin%60;
+  document.getElementById('resDuration').textContent=(d>0?d+'d ':'')+h+'h '+m+'m';
+  if(!dep)return;
+  const depDate=new Date(dep+'Z'),etaUtc=new Date(depDate.getTime()+totalMin*60000);
+  document.getElementById('resEtaUtc').textContent=fmtDate(etaUtc);
+  const etaLocal=new Date(etaUtc.getTime()+tz*3600000);
+  document.getElementById('resEtaLocal').textContent=fmtDate(etaLocal)+` (UTC${tz>=0?'+':''}${tz})`;
+}
+document.querySelectorAll('input').forEach(el=>el.oninput=calculate);calculate();
+
+function switchView(v){
+    document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
+    if(v==='saved'){
+        document.getElementById('viewSaved').classList.add('active');
+        document.querySelectorAll('.nav-btn')[1].classList.add('active');
+        renderSaved();
+    }else{
+        document.getElementById('viewCalc').classList.add('active');
+        document.querySelectorAll('.nav-btn')[0].classList.add('active');
+    }
+}
+
+function resetAll(){
+    ['voyageNo','loadPort','dischPort'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('distance').value=0;document.getElementById('speed').value=12;
+    document.getElementById('tzOffset').value=0;document.getElementById('weatherDelay').value=0;
+    calculate();
+}
+
+function saveVoyage(){
+    const dist=parseFloat(document.getElementById('distance').value)||0;
+    if(dist<=0){alert('Invalid data');return}
+    const voyages=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');
+    voyages.push({
+        voyageNo:document.getElementById('voyageNo').value||'N/A',
+        loadPort:document.getElementById('loadPort').value||'N/A',
+        dischPort:document.getElementById('dischPort').value||'N/A',
+        departure:document.getElementById('departure').value,
+        distance:document.getElementById('distance').value,
+        speed:document.getElementById('speed').value,
+        etaUtc:document.getElementById('resEtaUtc').textContent,
+        etaLocal:document.getElementById('resEtaLocal').textContent,
+        duration:document.getElementById('resDuration').textContent,
+        weatherDelay:document.getElementById('weatherDelay').value+'%'
+    });
+    localStorage.setItem('captainEtaVoyages',JSON.stringify(voyages));
+    alert('Voyage Secured ⚓');
+}
+
+function renderSaved(){
+    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]'),w=document.getElementById('svTableWrap');
+    if(!v.length){w.innerHTML='<p style="text-align:center;padding:2rem;color:var(--text-muted)">No records found.</p>';return}
+    let h='<table><thead><tr><th>#</th><th>Voyage</th><th>Route</th><th>Dist</th><th>Dur</th><th>ETA UTC</th><th>ETA Local</th><th></th></tr></thead><tbody>';
+    v.forEach((x,i)=>h+=`<tr><td>${i+1}</td><td>${x.voyageNo}</td><td>${x.loadPort} → ${x.dischPort}</td><td>${x.distance} NM</td><td>${x.duration}</td><td>${x.etaUtc}</td><td>${x.etaLocal}</td><td><button onclick="delVoyage(${i})" style="background:none;border:none;color:var(--error);cursor:pointer">✕</button></td></tr>`);
+    h+='</tbody></table>';w.innerHTML=h;
+}
+function delVoyage(i){const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');v.splice(i,1);localStorage.setItem('captainEtaVoyages',JSON.stringify(v));renderSaved()}
+function clearAll(){if(confirm('Clear all?')){localStorage.removeItem('captainEtaVoyages');renderSaved()}}
+
+function exportPDF(){
+    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');if(!v.length)return;
+    const{jsPDF}=window.jspdf;const doc=new jsPDF('l','mm','a4');
+    doc.text('Captain ETA Records',14,15);
+    doc.autoTable({head:[['Voyage','Route','Dist','ETA UTC']],body:v.map(x=>[x.voyageNo,x.loadPort+'->'+x.dischPort,x.distance,x.etaUtc])});
+    doc.save('voyages.pdf');
+}
+function exportXLSX(){
+    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');if(!v.length)return;
+    const ws=XLSX.utils.json_to_sheet(v);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Voyages');
+    XLSX.writeFile(wb,'voyages.xlsx');
+}
+</script>
+</body>
+</html>
