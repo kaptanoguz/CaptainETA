@@ -1,18 +1,34 @@
-# Captain ETA
+# CaptainETA
 
-Next-gen maritime ETA calculator with atmospheric bridge aesthetics. Precision navigation terminal for modern maritime command.
+Modern denizcilik için **viaj/ETA planlayıcı** — atmosferik köprü estetiğiyle hassas seyir terminali.
 
-## Features
-- **Voyage Planning:** Calculate duration, ETA (UTC), and ETA (Local) based on distance and speed.
-- **Port Synchronization:** Integrated port database with automatic distance calculation for common routes.
-- **Weather Margin:** Account for sea state and weather delays.
-- **Export Options:** Generate professional PDF and Excel voyage records.
-- **Offline Capable:** Pure HTML/JS/CSS implementation.
+Kaptanlar için mesafe, hız, hava durumu marjı ve liman senkronizasyonu ile ETA (UTC) ve ETA (Yerel) hesaplama aracı.
 
-## Tech Stack
+## Özellikler
+
+- **Viaj Planlama:** Mesafe ve hıza göre süre, ETA (UTC) ve ETA (Yerel) hesaplar
+- **Liman Senkronizasyonu:** Yaygın rotalar için otomatik mesafe hesabı yapan liman veritabanı
+- **Hava Marjı:** Deniz durumu ve hava gecikmelerini hesaba katar
+- **Dışa Aktarma:** Profesyonel PDF ve Excel viaj kayıtları üretir
+- **Çevrimdışı:** Saf HTML/JS/CSS — internetsiz çalışır
+- **233 liman** veritabanı, MT-kalibreli mesafe hesabı (141 gerçek MT değeri + havza faktörlü haversine)
+- **En-route güncelleme:** Yoldayken ETA'yı yeniden hesaplar
+- **Güvenlik seviyesi:** Son 10 liman LOCODE/flag/security SL1-3 bilgisi
+
+## Teknoloji
+
 - HTML5 / CSS3 (Vanilla)
 - JavaScript (ES6+)
-- jsPDF & SheetJS for exports
+- jsPDF & SheetJS (dışa aktarma için)
 
-## Installation
-Just open `index.html` in any modern web browser.
+## Kurulum
+
+`index.html` dosyasını herhangi bir modern tarayıcıda açın.
+
+## Ekran Görüntüsü
+
+![CaptainETA Arayüz](wallpaper.jpg)
+
+## Lisans
+
+MIT — Kaptan Oğuz Yağbasan
