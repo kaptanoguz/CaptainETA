@@ -1,0 +1,10 @@
+# downloaded data and intermediate results
+*.geojson
+*.nc
+*.pdf
+raw.txt
+pub151.json
+*.pkl
+*.log
+venv/
+__pycache__/

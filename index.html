@@ -2,663 +2,726 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Captain ETA — Modern Maritime Command</title>
-<meta name="description" content="Next-gen maritime ETA calculator with atmospheric bridge aesthetics.">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Captain ETA</title>
+<meta name="description" content="Voyage ETA and passage schedule calculator for ship operations.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%230b4f8c%22/%3E%3Cpath d=%22M4 11h8M8 4v7%22 stroke=%22white%22 stroke-width=%221.6%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+  // Set theme before first paint
+  (function(){let t=null;try{t=localStorage.getItem('captainEta.theme')}catch(e){}
+    if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+    document.documentElement.dataset.theme=t;})();
+</script>
 <style>
-/* --- DESIGN.MD TOKENS --- */
-:root {
-    --primary: #0A192F;
-    --secondary: #112240;
-    --accent: #64FFDA;
-    --highlight: #FBD38D;
-    --surface: rgba(17, 34, 64, 0.7);
-    --border: rgba(100, 255, 218, 0.1);
-    --text-main: #CCD6F6;
-    --text-muted: #8892B0;
-    --text-heading: #E6F1FF;
-    --error: #F56565;
-    --font-ui: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --blur: 20px;
-    --shadow: 0 20px 50px rgba(2, 12, 27, 0.7);
-    --transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+:root{
+  --bg:#f2f3f5; --surface:#fff; --sunken:#f7f8fa; --text:#141922; --muted:#5d6878; --faint:#8b95a3;
+  --line:#e0e3e8; --line-strong:#c8cdd4; --accent:#0b4f8c; --accent-ink:#fff; --accent-soft:#e9f0f8;
+  --warn:#8a5300; --warn-soft:#fbf2e2; --danger:#b42318;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  color-scheme:light;
 }
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    font-family: var(--font-ui);
-    color: var(--text-main);
-    background: var(--primary);
-    background-image: 
-        radial-gradient(circle at 10% 10%, rgba(100, 255, 218, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 90% 90%, rgba(251, 211, 141, 0.05) 0%, transparent 40%);
-    min-height: 100vh;
-    overflow-x: hidden;
+:root[data-theme="dark"]{
+  --bg:#0c1016; --surface:#141920; --sunken:#0f1319; --text:#e4e7ec; --muted:#97a1af; --faint:#687280;
+  --line:#232a34; --line-strong:#323b47; --accent:#6ea6dd; --accent-ink:#0c1016; --accent-soft:#15243a;
+  --warn:#e2a54e; --warn-soft:#271f10; --danger:#f07b70;
+  color-scheme:dark;
 }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font:14px/1.45 var(--sans);color:var(--text);background:var(--bg);font-variant-numeric:tabular-nums;min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+[hidden]{display:none!important}
 
-/* --- LAYOUT --- */
-.app-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2rem;
+/* Top bar */
+.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:0 20px;height:52px;display:flex;align-items:center;gap:28px}
+.brand{font-weight:600;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
+.brand span{color:var(--accent)}
+.tabs{display:flex;gap:4px;height:100%}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:0 10px;cursor:pointer;color:var(--muted);font-weight:500}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.tab .count{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:4px}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.clock{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.clock b{color:var(--text);font-weight:500}
+.icon-btn{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line);background:none;border-radius:6px;cursor:pointer;color:var(--muted)}
+.icon-btn:hover{color:var(--text);border-color:var(--line-strong)}
+
+/* Layout */
+main{max-width:1240px;margin:0 auto;padding:20px}
+.plan{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.stack{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px}
+.card h2{font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:baseline;gap:10px}
+.card h2 .hint{font-weight:400;color:var(--faint);font-size:12px}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1.6fr 1fr 1fr}
+
+/* Fields */
+.field label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px}
+.field label .link{font-size:12px}
+input,select{width:100%;height:36px;padding:0 10px;background:var(--surface);border:1px solid var(--line-strong);border-radius:5px;outline:none}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input:disabled{background:var(--sunken);border-color:var(--line);color:var(--faint)}
+input::placeholder{color:var(--faint)}
+.num{font-family:var(--mono);text-align:right}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=datetime-local]{font-family:var(--mono);font-size:13px}
+.unit{position:relative}
+.unit input{padding-right:38px}
+.unit::after{content:attr(data-unit);position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--faint);pointer-events:none}
+
+/* Route editor */
+.rhead,.rrow{display:grid;grid-template-columns:34px minmax(0,1fr) 122px 76px 70px 28px;gap:8px;align-items:center}
+.rhead{font-size:12px;color:var(--muted);padding-bottom:6px}
+.rhead span:nth-child(n+3){text-align:right}
+.rrow{padding:5px 0}
+.rrow + .rrow{border-top:1px dashed var(--line)}
+.idx{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.dist-wrap{position:relative}
+.dist-wrap input{padding-right:46px}
+.src{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;font-family:var(--mono);color:var(--faint);pointer-events:none;text-transform:uppercase}
+.src.man{color:var(--accent)}
+.rm{width:28px;height:28px;border:0;background:none;color:var(--faint);cursor:pointer;border-radius:5px;font-size:16px}
+.rm:hover{color:var(--danger);background:var(--sunken)}
+.route-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--faint)}
+.opts{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.opts label{display:flex;align-items:center;gap:7px;cursor:pointer}
+.opts input{width:15px;height:15px;accent-color:var(--accent);box-shadow:none}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-weight:500}
+.link:hover{text-decoration:underline}
+
+/* Autocomplete */
+.ac{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;list-style:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow:auto;padding:4px}
+.ac-list li{display:flex;justify-content:space-between;gap:12px;padding:7px 8px;border-radius:4px;cursor:pointer}
+.ac-list li[aria-selected="true"]{background:var(--accent-soft)}
+.ac-list li span{color:var(--muted)}
+.ac-list li small{font-family:var(--mono);color:var(--faint);white-space:nowrap}
+
+/* Summary */
+.summary{position:sticky;top:72px}
+.eta-label{font-size:12px;color:var(--muted)}
+.eta-main{font-family:var(--mono);font-size:26px;font-weight:500;letter-spacing:-.02em;margin-top:4px;line-height:1.2}
+.eta-main small{font-size:13px;color:var(--muted);margin-left:6px;letter-spacing:0}
+.eta-sub{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:4px;min-height:19px}
+.figs{display:grid;grid-template-columns:1fr auto;margin:18px 0 0;border-top:1px solid var(--line)}
+.figs dt,.figs dd{padding:8px 0;border-bottom:1px solid var(--line)}
+.figs dt{color:var(--muted)}
+.figs dd{font-family:var(--mono);text-align:right}
+.figs dd small{color:var(--faint)}
+.note{margin-top:12px;font-size:12px;padding:8px 10px;border-radius:5px;background:var(--warn-soft);color:var(--warn)}
+.note:empty{display:none}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.actions .primary{grid-column:1/-1}
+.btn{height:36px;padding:0 14px;border-radius:5px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--faint)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.reset{display:block;margin:14px auto 0;color:var(--muted);font-weight:400;font-size:12px}
+
+/* Tables */
+.table-wrap{overflow-x:auto;margin:0 -20px;padding:0 20px}
+table{width:100%;border-collapse:collapse;white-space:nowrap}
+th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:0 10px 8px;border-bottom:1px solid var(--line-strong)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{padding-left:0}
+th:last-child,td:last-child{padding-right:0}
+td.n,th.n{text-align:right}
+td.n,td.m{font-family:var(--mono);font-size:13px}
+td .tag{font-family:var(--mono);font-size:10px;color:var(--accent);margin-left:4px}
+td.muted,.muted{color:var(--faint)}
+tr.final td{font-weight:600}
+.empty{padding:28px 0;text-align:center;color:var(--faint)}
+.rec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+.rec-head h2{margin:0}
+.row-actions{display:flex;gap:14px;justify-content:flex-end}
+.row-actions .del{color:var(--danger)}
+
+/* Toast */
+.toast{position:fixed;right:20px;bottom:20px;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:6px;font-size:13px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:none}
+
+@media (max-width:980px){
+  .plan{grid-template-columns:1fr}
+  .summary{position:static}
 }
-
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 3rem;
-    padding: 1.5rem;
-    background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: var(--shadow);
+@media (max-width:640px){
+  main{padding:16px}
+  .top-in{padding:0 16px;gap:16px}
+  .clock{display:none}
+  .card{padding:16px}
+  .table-wrap{margin:0 -16px;padding:0 16px}
+  .g3{grid-template-columns:1fr 1fr}
+  .g3 .field:first-child{grid-column:1/-1}
+  .rhead{display:none}
+  .rrow{grid-template-columns:34px 1fr 1fr 1fr 28px;grid-template-areas:"i p p p x" ". d s z .";row-gap:6px;padding:8px 0}
+  .rrow>.idx{grid-area:i}.rrow>.ac{grid-area:p}.rrow>.dist-wrap{grid-area:d}.rrow>.f-stay{grid-area:s}.rrow>.f-tz{grid-area:z}.rrow>:last-child{grid-area:x}
+  .rrow .f-stay::placeholder,.rrow .f-tz::placeholder{font-size:11px}
 }
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.brand-icon {
-    font-size: 2.5rem;
-    filter: drop-shadow(0 0 10px var(--accent));
-}
-
-.brand h1 {
-    font-size: 1.5rem;
-    color: var(--text-heading);
-    letter-spacing: 1px;
-}
-
-.brand span {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-top: 2px;
-}
-
-.utc-display {
-    text-align: right;
-}
-
-.utc-label {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 4px;
-}
-
-.utc-clock {
-    font-family: var(--font-mono);
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--highlight);
-    text-shadow: 0 0 15px rgba(251, 211, 141, 0.3);
-}
-
-/* --- NAVIGATION --- */
-.nav-bar {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.nav-btn {
-    padding: 0.8rem 2rem;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: var(--transition);
-}
-
-.nav-btn.active {
-    background: var(--accent);
-    color: var(--primary);
-    border-color: var(--accent);
-    box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
-}
-
-.nav-btn:hover:not(.active) {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-/* --- DASHBOARD --- */
-.dashboard {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 1.5rem;
-}
-
-.panel {
-    background: var(--surface);
-    backdrop-filter: blur(var(--blur));
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 2rem;
-    box-shadow: var(--shadow);
-}
-
-.panel-voyage { grid-column: span 4; }
-.panel-params { grid-column: span 5; }
-.panel-results { grid-column: span 3; }
-
-.panel-title {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    color: var(--accent);
-    margin-bottom: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-}
-
-.panel-title::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-}
-
-/* --- FORMS --- */
-.input-group {
-    margin-bottom: 1.5rem;
-}
-
-label {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-input {
-    width: 100%;
-    background: rgba(10, 25, 47, 0.5);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: var(--text-main);
-    font-family: var(--font-ui);
-    font-size: 0.95rem;
-    transition: var(--transition);
-}
-
-input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 10px rgba(100, 255, 218, 0.1);
-}
-
-.stepper {
-    display: flex;
-    align-items: center;
-}
-
-.step-btn {
-    width: 40px;
-    height: 44px;
-    background: var(--secondary);
-    border: 1px solid var(--border);
-    color: var(--accent);
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.step-btn:hover {
-    background: var(--accent);
-    color: var(--primary);
-}
-
-.step-btn:first-child { border-radius: 8px 0 0 8px; }
-.step-btn:last-child { border-radius: 0 8px 8px 0; }
-
-.stepper input {
-    border-radius: 0;
-    text-align: center;
-    border-left: none;
-    border-right: none;
-}
-
-/* --- AUTOCOMPLETE --- */
-.ac-container { position: relative; }
-.ac-list {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--secondary);
-    border: 1px solid var(--accent);
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    z-index: 100;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-}
-
-.ac-item {
-    padding: 12px 16px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    border-bottom: 1px solid var(--border);
-}
-
-.ac-item:hover { background: var(--border); color: var(--accent); }
-
-/* --- RESULTS --- */
-.result-display {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.res-card {
-    padding: 1.5rem;
-    background: rgba(100, 255, 218, 0.03);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    text-align: center;
-}
-
-.res-label {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-}
-
-.res-value {
-    font-family: var(--font-mono);
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--text-heading);
-}
-
-.res-value.large {
-    font-size: 1.8rem;
-    color: var(--highlight);
-}
-
-.action-row {
-    grid-column: span 12;
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.btn {
-    padding: 1rem 2.5rem;
-    border-radius: 8px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.btn-primary {
-    background: var(--accent);
-    color: var(--primary);
-    border: none;
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(100, 255, 218, 0.2);
-}
-
-.btn-secondary {
-    background: transparent;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-}
-
-.btn-secondary:hover {
-    background: rgba(100, 255, 218, 0.1);
-}
-
-/* --- TABLES --- */
-.table-container {
-    width: 100%;
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1.5rem;
-}
-
-th {
-    text-align: left;
-    padding: 1rem;
-    color: var(--accent);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    border-bottom: 1px solid var(--border);
-}
-
-td {
-    padding: 1rem;
-    font-size: 0.85rem;
-    border-bottom: 1px solid var(--border);
-}
-
-tr:hover td {
-    background: rgba(100, 255, 218, 0.02);
-}
-
-.warning {
-    color: var(--error);
-    font-size: 0.75rem;
-    margin-top: 1rem;
-    display: none;
-    text-align: center;
-}
-
-.view { display: none; }
-.view.active { display: block; animation: fadeIn 0.5s ease-out; }
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-footer {
-    text-align: center;
-    margin-top: 4rem;
-    padding: 2rem;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-}
-
-@media (max-width: 1200px) {
-    .panel-voyage, .panel-params { grid-column: span 6; }
-    .panel-results { grid-column: span 12; }
-}
-
-@media (max-width: 768px) {
-    .panel { grid-column: span 12; }
-}
+@media print{.top,.actions,.reset,.route-foot .link{display:none}body{background:#fff}.card{border:0}}
 </style>
 </head>
 <body>
 
-<div class="app-container">
-    <header>
-        <div class="brand">
-            <div class="brand-icon">⚓</div>
-            <div>
-                <h1>Captain ETA</h1>
-                <span>Precision Navigation Terminal</span>
-            </div>
-        </div>
-        <div class="utc-display">
-            <div class="utc-label">System Time UTC</div>
-            <div class="utc-clock" id="utcClock">--:--:--</div>
-        </div>
-    </header>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Captain <span>ETA</span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="plan" aria-selected="true">Planner</button>
+      <button class="tab" role="tab" data-view="records" aria-selected="false">Records<span class="count" id="recCount"></span></button>
+    </nav>
+    <div class="top-right">
+      <div class="clock">UTC <b id="utc">--:--</b></div>
+      <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 0 0 12z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
 
-    <div class="nav-bar">
-        <button class="nav-btn active" onclick="switchView('calc')">Voyage Planning</button>
-        <button class="nav-btn" onclick="switchView('saved')">Saved Voyages</button>
+<main>
+  <!-- PLANNER -->
+  <section id="view-plan">
+    <div class="plan">
+      <div class="stack">
+        <section class="card">
+          <h2>Voyage</h2>
+          <div class="grid g2" style="margin-bottom:12px">
+            <div class="field"><label for="vessel">Vessel</label><input id="vessel" data-k="vessel" placeholder="MV Name" autocomplete="off"></div>
+            <div class="field"><label for="voyage">Voyage no.</label><input id="voyage" data-k="voyage" placeholder="e.g. 2611" autocomplete="off"></div>
+          </div>
+          <div class="grid g3">
+            <div class="field"><label for="etd">ETD (UTC) <button class="link" id="etdNow" type="button">Now</button></label><input id="etd" data-k="etd" type="datetime-local"></div>
+            <div class="field"><label for="speed">Speed</label><div class="unit" data-unit="kn"><input id="speed" data-k="speed" class="num" type="number" min="0" max="40" step="0.1"></div></div>
+            <div class="field"><label for="margin">Sea margin</label><div class="unit" data-unit="%"><input id="margin" data-k="margin" class="num" type="number" min="0" max="50" step="1"></div></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Route <span class="hint">Sea-route distances, berth to berth — type to override</span></h2>
+          <div class="rhead"><span></span><span>Port</span><span>Dist. (nm)</span><span>Stay (h)</span><span>UTC ±</span><span></span></div>
+          <div id="route"></div>
+          <div class="route-foot">
+            <button class="link" id="addPort" type="button">+ Add port call</button>
+            <span>UTC ± is used for local-time ETAs</span>
+          </div>
+          <div class="opts">
+            <label title="Kiel Canal and the Sound (Drogden). Off: deep-draft routing via the Great Belt / Skagen."><input type="checkbox" data-opt="kiel"> Kiel Canal &amp; Øresund</label>
+            <label title="Route around the Cape of Good Hope instead of through Suez."><input type="checkbox" data-opt="cape"> Avoid Suez (via Cape)</label>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Bunkers <span class="hint">Sea passage only</span></h2>
+          <div class="grid g2">
+            <div class="field"><label for="cons">Consumption at sea</label><div class="unit" data-unit="mt/d"><input id="cons" data-k="cons" class="num" type="number" min="0" step="0.1" placeholder="—" style="padding-right:46px"></div></div>
+            <div class="field"><label for="cf">Fuel (CO₂ factor)</label>
+              <select id="cf" data-k="cf">
+                <option value="3.114">HFO — 3.114</option>
+                <option value="3.151">VLSFO / LFO — 3.151</option>
+                <option value="3.206">MGO / MDO — 3.206</option>
+                <option value="2.750">LNG — 2.750</option>
+              </select>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="card summary" aria-live="polite">
+        <div class="eta-label" id="sumLabel">ETA</div>
+        <div class="eta-main" id="sumEta">—</div>
+        <div class="eta-sub" id="sumSub"></div>
+        <dl class="figs" id="sumFigs"></dl>
+        <p class="note" id="sumNote"></p>
+        <div class="actions">
+          <button class="btn primary" id="btnSave">Save voyage</button>
+          <button class="btn" id="btnCopy">Copy ETA msg</button>
+          <button class="btn" id="btnPdf">PDF</button>
+        </div>
+        <button class="link reset" id="btnReset">Clear form</button>
+      </aside>
     </div>
 
-    <!-- CALCULATOR VIEW -->
-    <div class="view active" id="viewCalc">
-        <div class="dashboard">
-            <div class="panel panel-voyage">
-                <div class="panel-title">Voyage Info</div>
-                <div class="input-group">
-                    <label>Voyage Reference</label>
-                    <input type="text" id="voyageNo" placeholder="VOY-2026-X">
-                </div>
-                <div class="input-group ac-container">
-                    <label>Departure Port</label>
-                    <input type="text" id="loadPort" placeholder="Start typing...">
-                    <div class="ac-list" id="acLoad"></div>
-                </div>
-                <div class="input-group ac-container">
-                    <label>Arrival Port</label>
-                    <input type="text" id="dischPort" placeholder="Start typing...">
-                    <div class="ac-list" id="acDisch"></div>
-                </div>
-                <div id="autoDist" style="font-size: 0.7rem; color: var(--accent); margin-top: -1rem; margin-bottom: 1rem;"></div>
-            </div>
+    <section class="card" style="margin-top:16px">
+      <h2>Passage schedule</h2>
+      <div class="table-wrap" id="schedule"></div>
+    </section>
+  </section>
 
-            <div class="panel panel-params">
-                <div class="panel-title">Telemetry Parameters</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                    <div class="input-group">
-                        <label>Distance (NM)</label>
-                        <div class="stepper">
-                            <button class="step-btn" onclick="step('distance',-10)">-</button>
-                            <input type="number" id="distance" value="0">
-                            <button class="step-btn" onclick="step('distance',10)">+</button>
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <label>Target Speed (KTS)</label>
-                        <div class="stepper">
-                            <button class="step-btn" onclick="step('speed',-0.5)">-</button>
-                            <input type="number" id="speed" value="12.0" step="0.1">
-                            <button class="step-btn" onclick="step('speed',0.5)">+</button>
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <label>Departure Time (UTC)</label>
-                        <input type="datetime-local" id="departure">
-                    </div>
-                    <div class="input-group">
-                        <label>TZ Offset (HRS)</label>
-                        <div class="stepper">
-                            <button class="step-btn" onclick="step('tzOffset',-1)">-</button>
-                            <input type="number" id="tzOffset" value="0">
-                            <button class="step-btn" onclick="step('tzOffset',1)">+</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>Weather / Sea State Margin (%)</label>
-                    <div class="stepper">
-                        <button class="step-btn" onclick="step('weatherDelay',-1)">-</button>
-                        <input type="number" id="weatherDelay" value="0">
-                        <button class="step-btn" onclick="step('weatherDelay',1)">+</button>
-                    </div>
-                </div>
-            </div>
+  <!-- RECORDS -->
+  <section id="view-records" hidden>
+    <section class="card">
+      <div class="rec-head">
+        <h2>Saved voyages</h2>
+        <button class="btn" id="btnCsv">Export CSV</button>
+      </div>
+      <div class="table-wrap" id="records"></div>
+    </section>
+  </section>
+</main>
 
-            <div class="panel panel-results">
-                <div class="panel-title">Voyage ETA</div>
-                <div class="result-display">
-                    <div class="res-card">
-                        <div class="res-label">Duration</div>
-                        <div class="res-value" id="resDuration">—</div>
-                    </div>
-                    <div class="res-card">
-                        <div class="res-label">ETA UTC</div>
-                        <div class="res-value large" id="resEtaUtc">—</div>
-                    </div>
-                    <div class="res-card">
-                        <div class="res-label">ETA Local</div>
-                        <div class="res-value large" id="resEtaLocal">—</div>
-                    </div>
-                    <div class="warning" id="warning">Enter valid distance and speed.</div>
-                </div>
-            </div>
+<div class="toast" id="toast" role="status"></div>
 
-            <div class="action-row">
-                <button class="btn btn-primary" onclick="saveVoyage()">Secure Voyage</button>
-                <button class="btn btn-secondary" onclick="resetAll()">Reset Terminal</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- SAVED VOYAGES VIEW -->
-    <div class="view" id="viewSaved">
-        <div class="panel" style="grid-column: span 12;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                <div class="panel-title" style="margin-bottom: 0;">Voyage Records</div>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="nav-btn" onclick="exportPDF()" style="padding: 0.5rem 1rem; font-size: 0.7rem;">PDF Export</button>
-                    <button class="nav-btn" onclick="exportXLSX()" style="padding: 0.5rem 1rem; font-size: 0.7rem;">Excel Export</button>
-                    <button class="nav-btn" onclick="clearAll()" style="padding: 0.5rem 1rem; font-size: 0.7rem; border-color: var(--error); color: var(--error);">Clear All</button>
-                </div>
-            </div>
-            <div class="table-container" id="svTableWrap">
-                <!-- Table rendered by JS -->
-            </div>
-        </div>
-    </div>
-
-    <footer>
-        ⚓ Captain ETA Calculator • Safe Voyages • System Status: Nominal
-    </footer>
-</div>
-
+<script src="ports.js?v=2"></script>
 <script>
-/* --- CORE LOGIC (Preserved and cleaned) --- */
-const PORTS=["Istanbul, Turkey","Ambarli, Turkey","Izmir, Turkey","Mersin, Turkey","Iskenderun, Turkey","Canakkale, Turkey","Piraeus, Greece","Thessaloniki, Greece","Volos, Greece","Constanta, Romania","Varna, Bulgaria","Burgas, Bulgaria","Odessa, Ukraine","Novorossiysk, Russia","Limassol, Cyprus","Haifa, Israel","Ashdod, Israel","Beirut, Lebanon","Latakia, Syria","Alexandria, Egypt","Port Said, Egypt","Damietta, Egypt","Valletta, Malta","Marsaxlokk, Malta","Genoa, Italy","Livorno, Italy","Naples, Italy","Trieste, Italy","Venice, Italy","Ravenna, Italy","Gioia Tauro, Italy","Augusta, Italy","Taranto, Italy","La Spezia, Italy","Cagliari, Italy","Barcelona, Spain","Valencia, Spain","Algeciras, Spain","Cartagena, Spain","Bilbao, Spain","Tarragona, Spain","Marseille, France","Le Havre, France","Dunkirk, France","Fos-sur-Mer, France","Rotterdam, Netherlands","Amsterdam, Netherlands","Antwerp, Belgium","Zeebrugge, Belgium","Hamburg, Germany","Bremerhaven, Germany","Wilhelmshaven, Germany","London, UK","Southampton, UK","Felixstowe, UK","Liverpool, UK","Immingham, UK","Lisbon, Portugal","Sines, Portugal","Leixoes, Portugal","Gibraltar","Tangier Med, Morocco","Casablanca, Morocco","Algiers, Algeria","Oran, Algeria","Tunis, Tunisia","Sfax, Tunisia","Rijeka, Croatia","Koper, Slovenia","Split, Croatia","Dubrovnik, Croatia","Bar, Montenegro","Durres, Albania","Gdansk, Poland","Gdynia, Poland","Gothenburg, Sweden","Malmo, Sweden","Copenhagen, Denmark","Aarhus, Denmark","Helsinki, Finland","Tallinn, Estonia","Riga, Latvia","St. Petersburg, Russia"];
-const DIST={};
-function addD(a,b,d){const k=[a,b].sort().join('|');DIST[k]=d}
-addD("Istanbul, Turkey","Rotterdam, Netherlands",3150);addD("Istanbul, Turkey","Hamburg, Germany",3400);addD("Istanbul, Turkey","Antwerp, Belgium",3200);addD("Istanbul, Turkey","Piraeus, Greece",340);addD("Istanbul, Turkey","Genoa, Italy",1310);addD("Istanbul, Turkey","Barcelona, Spain",1530);addD("Istanbul, Turkey","Marseille, France",1440);addD("Istanbul, Turkey","Valencia, Spain",1660);addD("Istanbul, Turkey","Algeciras, Spain",1770);addD("Istanbul, Turkey","Gibraltar",1780);addD("Istanbul, Turkey","Mersin, Turkey",580);addD("Istanbul, Turkey","Izmir, Turkey",280);addD("Istanbul, Turkey","Constanta, Romania",260);addD("Istanbul, Turkey","Odessa, Ukraine",520);addD("Istanbul, Turkey","Novorossiysk, Russia",640);addD("Istanbul, Turkey","Limassol, Cyprus",560);addD("Istanbul, Turkey","Haifa, Israel",720);addD("Istanbul, Turkey","Alexandria, Egypt",780);addD("Istanbul, Turkey","Port Said, Egypt",760);addD("Istanbul, Turkey","Valletta, Malta",960);addD("Istanbul, Turkey","Naples, Italy",1060);addD("Istanbul, Turkey","Trieste, Italy",1310);addD("Istanbul, Turkey","London, UK",3300);addD("Istanbul, Turkey","Le Havre, France",3280);addD("Istanbul, Turkey","Lisbon, Portugal",2200);addD("Istanbul, Turkey","Casablanca, Morocco",2350);addD("Istanbul, Turkey","Southampton, UK",3280);addD("Istanbul, Turkey","Thessaloniki, Greece",320);addD("Istanbul, Turkey","Gioia Tauro, Italy",940);addD("Istanbul, Turkey","Tangier Med, Morocco",1790);addD("Istanbul, Turkey","Tunis, Tunisia",1020);addD("Istanbul, Turkey","Beirut, Lebanon",680);addD("Istanbul, Turkey","Livorno, Italy",1270);addD("Piraeus, Greece","Rotterdam, Netherlands",3050);addD("Piraeus, Greece","Genoa, Italy",1000);addD("Piraeus, Greece","Marseille, France",1100);addD("Piraeus, Greece","Barcelona, Spain",1200);addD("Piraeus, Greece","Valencia, Spain",1350);addD("Piraeus, Greece","Algeciras, Spain",1440);addD("Piraeus, Greece","Gibraltar",1450);addD("Piraeus, Greece","Valletta, Malta",540);addD("Piraeus, Greece","Naples, Italy",700);addD("Piraeus, Greece","Port Said, Egypt",560);addD("Piraeus, Greece","Limassol, Cyprus",520);addD("Piraeus, Greece","Haifa, Israel",660);addD("Piraeus, Greece","Alexandria, Egypt",610);addD("Piraeus, Greece","Trieste, Italy",950);addD("Piraeus, Greece","Gioia Tauro, Italy",510);addD("Piraeus, Greece","Mersin, Turkey",570);addD("Genoa, Italy","Rotterdam, Netherlands",2300);addD("Genoa, Italy","Hamburg, Germany",2550);addD("Genoa, Italy","Barcelona, Spain",380);addD("Genoa, Italy","Marseille, France",210);addD("Genoa, Italy","Valencia, Spain",530);addD("Genoa, Italy","Algeciras, Spain",900);addD("Genoa, Italy","Gibraltar",910);addD("Genoa, Italy","Naples, Italy",330);addD("Genoa, Italy","Livorno, Italy",100);addD("Genoa, Italy","Valletta, Malta",650);addD("Genoa, Italy","Port Said, Egypt",1630);addD("Genoa, Italy","Trieste, Italy",560);addD("Rotterdam, Netherlands","Hamburg, Germany",280);addD("Rotterdam, Netherlands","Antwerp, Belgium",80);addD("Rotterdam, Netherlands","Le Havre, France",260);addD("Rotterdam, Netherlands","London, UK",210);addD("Rotterdam, Netherlands","Felixstowe, UK",160);addD("Rotterdam, Netherlands","Southampton, UK",260);addD("Rotterdam, Netherlands","Lisbon, Portugal",1050);addD("Rotterdam, Netherlands","Gibraltar",1350);addD("Rotterdam, Netherlands","Barcelona, Spain",1770);addD("Rotterdam, Netherlands","Algeciras, Spain",1440);addD("Rotterdam, Netherlands","Marseille, France",1840);addD("Rotterdam, Netherlands","Genoa, Italy",2300);addD("Rotterdam, Netherlands","Gdansk, Poland",660);addD("Rotterdam, Netherlands","Gothenburg, Sweden",500);addD("Rotterdam, Netherlands","Casablanca, Morocco",1550);addD("Rotterdam, Netherlands","Bilbao, Spain",730);addD("Rotterdam, Netherlands","Valletta, Malta",2200);addD("Rotterdam, Netherlands","Port Said, Egypt",3300);addD("Hamburg, Germany","Antwerp, Belgium",340);addD("Hamburg, Germany","London, UK",430);addD("Hamburg, Germany","Le Havre, France",480);addD("Hamburg, Germany","Gdansk, Poland",400);addD("Hamburg, Germany","Gothenburg, Sweden",340);addD("Hamburg, Germany","Copenhagen, Denmark",340);addD("Hamburg, Germany","Helsinki, Finland",1100);addD("Hamburg, Germany","St. Petersburg, Russia",1250);addD("Hamburg, Germany","Felixstowe, UK",380);addD("Barcelona, Spain","Marseille, France",200);addD("Barcelona, Spain","Valencia, Spain",170);addD("Barcelona, Spain","Algeciras, Spain",520);addD("Barcelona, Spain","Gibraltar",530);addD("Barcelona, Spain","Valletta, Malta",690);addD("Barcelona, Spain","Genoa, Italy",380);addD("Barcelona, Spain","Naples, Italy",750);addD("Marseille, France","Valencia, Spain",370);addD("Marseille, France","Algeciras, Spain",800);addD("Marseille, France","Gibraltar",810);addD("Marseille, France","Valletta, Malta",690);addD("Valencia, Spain","Algeciras, Spain",350);addD("Algeciras, Spain","Tangier Med, Morocco",15);addD("Algeciras, Spain","Casablanca, Morocco",220);addD("Gibraltar","Tangier Med, Morocco",18);addD("Gibraltar","Casablanca, Morocco",220);addD("Gibraltar","Lisbon, Portugal",280);addD("Lisbon, Portugal","Casablanca, Morocco",340);addD("Lisbon, Portugal","Le Havre, France",770);addD("Lisbon, Portugal","Bilbao, Spain",540);addD("Valletta, Malta","Gioia Tauro, Italy",210);addD("Valletta, Malta","Naples, Italy",370);addD("Valletta, Malta","Port Said, Egypt",940);addD("Valletta, Malta","Tunis, Tunisia",180);addD("Valletta, Malta","Tripoli, Libya",220);addD("Port Said, Egypt","Haifa, Israel",180);addD("Port Said, Egypt","Beirut, Lebanon",210);addD("Port Said, Egypt","Limassol, Cyprus",220);addD("Port Said, Egypt","Alexandria, Egypt",130);addD("Port Said, Egypt","Mersin, Turkey",340);addD("Haifa, Israel","Limassol, Cyprus",210);addD("Haifa, Israel","Beirut, Lebanon",120);addD("Haifa, Israel","Mersin, Turkey",270);addD("Constanta, Romania","Odessa, Ukraine",290);addD("Constanta, Romania","Novorossiysk, Russia",530);addD("Izmir, Turkey","Piraeus, Greece",170);addD("Izmir, Turkey","Mersin, Turkey",490);addD("Mersin, Turkey","Limassol, Cyprus",150);addD("Mersin, Turkey","Beirut, Lebanon",190);addD("Trieste, Italy","Venice, Italy",60);addD("Trieste, Italy","Rijeka, Croatia",80);addD("Trieste, Italy","Koper, Slovenia",15);addD("Naples, Italy","Gioia Tauro, Italy",180);addD("Naples, Italy","Livorno, Italy",260);addD("London, UK","Southampton, UK",180);addD("London, UK","Felixstowe, UK",100);addD("London, UK","Antwerp, Belgium",195);addD("Le Havre, France","Antwerp, Belgium",230);addD("Gdansk, Poland","Gothenburg, Sweden",400);addD("Gdansk, Poland","Copenhagen, Denmark",370);addD("Gdansk, Poland","Helsinki, Finland",550);addD("Gdansk, Poland","St. Petersburg, Russia",660);addD("Gothenburg, Sweden","Copenhagen, Denmark",160);addD("Helsinki, Finland","St. Petersburg, Russia",180);addD("Helsinki, Finland","Tallinn, Estonia",50);
+'use strict';
+const $ = s => document.querySelector(s);
+const KEY = { draft:'captainEta.draft', rec:'captainEta.records', theme:'captainEta.theme', legacy:'captainEtaVoyages' };
+const store = {
+  get(k, f){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : f }catch(e){ return f } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
+};
 
-function getDist(a,b){const k=[a,b].sort().join('|');return DIST[k]||null}
+/* ---------- formatting ---------- */
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const pad = n => String(n).padStart(2,'0');
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const city = n => (n || '').split(',')[0].trim();
+const nf = (n, d=0) => n.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d });
+const H = 3600e3;
 
-function tick(){const n=new Date();document.getElementById('utcClock').textContent=n.getUTCHours().toString().padStart(2,'0')+':'+n.getUTCMinutes().toString().padStart(2,'0')+':'+n.getUTCSeconds().toString().padStart(2,'0')}
-setInterval(tick,1000);tick();
-(function(){const n=new Date();document.getElementById('departure').value=new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,16)})();
+function fmtDate(ms){ const d = new Date(ms); return `${pad(d.getUTCDate())} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}` }
+function fmtTime(ms){ const d = new Date(ms); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }
+function fmtShort(ms){ const d = new Date(ms); return `${pad(d.getUTCDate())} ${MON[d.getUTCMonth()]} ${fmtTime(ms)}` }
+function fmtDur(h){
+  const t = Math.round(h*60), d = Math.floor(t/1440), hh = Math.floor(t%1440/60), mm = t%60;
+  return (d ? d+'d ' : '') + pad(hh)+'h ' + pad(mm)+'m';
+}
+function fmtTz(tz){
+  const a = Math.abs(tz), h = Math.floor(a), m = Math.round((a-h)*60);
+  return 'UTC' + (tz < 0 ? '−' : '+') + h + (m ? ':'+pad(m) : '');
+}
+// Telex style: 12 OCT 2026 1430
+function fmtTlx(ms){ const d = new Date(ms); return `${pad(d.getUTCDate())} ${MON[d.getUTCMonth()].toUpperCase()} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}` }
+function utcInputValue(ms){ return new Date(ms).toISOString().slice(0,16) }
+function nextHourUTC(){ const t = Date.now(); return utcInputValue(Math.ceil(t/H)*H) }
 
-function setupAC(inputId,listId){
-  const inp=document.getElementById(inputId),list=document.getElementById(listId);
-  inp.addEventListener('input',function(){
-    const v=this.value.toLowerCase();
-    if(v.length<1){list.style.display='none';return}
-    const matches=PORTS.filter(p=>p.toLowerCase().includes(v)).slice(0,10);
-    if(!matches.length){list.style.display='none';return}
-    list.innerHTML=matches.map(p=>`<div class="ac-item" data-val="${p}">${p}</div>`).join('');
-    list.style.display='block';
-    list.querySelectorAll('.ac-item').forEach(el=>{
-      el.onclick=()=>{inp.value=el.dataset.val;list.style.display='none';tryAutoDist();calculate()}
-    });
+/* ---------- ports ---------- */
+function resolvePort(v){
+  v = (v || '').trim().toLowerCase();
+  if (!v) return null;
+  const exact = PORTS.find(p => p.toLowerCase() === v);
+  if (exact) return exact;
+  const byCity = PORTS.filter(p => city(p).toLowerCase() === v);
+  return byCity.length === 1 ? byCity[0] : null;
+}
+function legLookup(a, b){
+  const pa = resolvePort(a), pb = resolvePort(b);
+  if (!pa || !pb) return { dist:null, src:'' };
+  const d = getDist(pa, pb, { kiel:!!S.kiel, cape:!!S.cape });
+  return { dist:d, src: d == null ? '' : 'sea' };
+}
+function searchPorts(q){
+  q = q.trim().toLowerCase();
+  if (!q) return [];
+  const a = [], b = [];
+  for (const p of PORTS){
+    const l = p.toLowerCase();
+    if (l.startsWith(q) || city(p).toLowerCase().startsWith(q)) a.push(p);
+    else if (l.includes(q)) b.push(p);
+  }
+  return a.concat(b).slice(0, 10);
+}
+
+/* ---------- state ---------- */
+const newPort = () => ({ name:'', dist:null, manual:false, stay:'', tz:'' });
+const blankState = () => ({ vessel:'', voyage:'', etd:nextHourUTC(), speed:'12.0', margin:'0', cons:'', cf:'3.114', kiel:false, cape:false, ports:[newPort(), newPort()] });
+let S = store.get(KEY.draft, null) || blankState();
+
+function refreshAutoDist(i){
+  if (i < 1 || i >= S.ports.length) return;
+  const p = S.ports[i];
+  if (p.manual) return;
+  p.dist = legLookup(S.ports[i-1].name, p.name).dist;
+}
+function srcOf(i){
+  const p = S.ports[i];
+  if (p.manual) return 'man';
+  return p.dist == null ? '' : legLookup(S.ports[i-1].name, p.name).src;
+}
+
+/* ---------- calculation ---------- */
+function compute(){
+  const spd = num(S.speed), margin = num(S.margin) || 0;
+  const etd = S.etd ? Date.parse(S.etd + ':00Z') : NaN;
+  const last = S.ports.length - 1;
+  let t = Number.isFinite(etd) ? etd : null;
+  let dist = 0, seaH = 0, portH = 0, complete = spd > 0 && t != null;
+  const rows = S.ports.map((p, i) => {
+    const tz = num(p.tz);
+    if (i === 0) return { i, name:p.name, tz, arr:null, dep:t };
+    const d = num(p.dist);
+    const src = srcOf(i);
+    let hrs = null;
+    if (d > 0){ dist += d; if (spd > 0){ hrs = d / spd * (1 + margin/100); seaH += hrs } }
+    else complete = false;
+    const arr = (t != null && hrs != null) ? t + hrs*H : null;
+    const stay = i < last ? (num(p.stay) || 0) : 0;
+    portH += stay;
+    const dep = arr != null ? arr + stay*H : null;
+    t = dep;
+    return { i, name:p.name, tz, dist:d, src, hrs, arr, stay, dep };
   });
-  document.addEventListener('click',e=>{if(e.target!==inp)list.style.display='none'});
-}
-setupAC('loadPort','acLoad');setupAC('dischPort','acDisch');
-
-function tryAutoDist(){
-  const a=document.getElementById('loadPort').value,b=document.getElementById('dischPort').value;
-  const d=getDist(a,b),el=document.getElementById('autoDist');
-  if(d){document.getElementById('distance').value=d;el.textContent='✓ Distance synchronized: '+d+' NM'}
-  else{el.textContent=''}
-  calculate();
+  const cons = num(S.cons), cf = num(S.cf) || 3.114;
+  const fuel = cons > 0 && seaH > 0 ? seaH/24 * cons : null;
+  return { rows, dist, seaH, portH, complete, fuel, co2: fuel != null ? fuel*cf : null,
+           eta: rows[last].arr, dest: rows[last], spd, margin, etd: rows[0].dep };
 }
 
-function step(id,delta){const el=document.getElementById(id);let v=parseFloat(el.value)||0;v=Math.round((v+delta)*100)/100;el.value=v;calculate()}
-
-function fmtDate(d){const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getUTCDate().toString().padStart(2,'0')+' '+m[d.getUTCMonth()]+' '+d.getUTCFullYear()+' '+d.getUTCHours().toString().padStart(2,'0')+':'+d.getUTCMinutes().toString().padStart(2,'0')}
-
-function calculate(){
-  const dist=parseFloat(document.getElementById('distance').value)||0,spd=parseFloat(document.getElementById('speed').value)||0;
-  const dep=document.getElementById('departure').value,tz=parseFloat(document.getElementById('tzOffset').value)||0,wd=parseFloat(document.getElementById('weatherDelay').value)||0;
-  const warn=document.getElementById('warning');
-  if(dist<=0||spd<=0){warn.style.display='block';return}
-  warn.style.display='none';
-  const totalMin=Math.round(dist/spd*(1+wd/100)*60);
-  const d=Math.floor(totalMin/1440),h=Math.floor((totalMin%1440)/60),m=totalMin%60;
-  document.getElementById('resDuration').textContent=(d>0?d+'d ':'')+h+'h '+m+'m';
-  if(!dep)return;
-  const depDate=new Date(dep+'Z'),etaUtc=new Date(depDate.getTime()+totalMin*60000);
-  document.getElementById('resEtaUtc').textContent=fmtDate(etaUtc);
-  const etaLocal=new Date(etaUtc.getTime()+tz*3600000);
-  document.getElementById('resEtaLocal').textContent=fmtDate(etaLocal)+` (UTC${tz>=0?'+':''}${tz})`;
+/* ---------- rendering ---------- */
+function renderRoute(){
+  const last = S.ports.length - 1;
+  $('#route').innerHTML = S.ports.map((p, i) => {
+    const ends = i === 0 || i === last;
+    const ph = i === 0 ? 'Departure port' : i === last ? 'Arrival port' : 'Port of call';
+    return `<div class="rrow" data-i="${i}">
+      <span class="idx">${i === 0 ? 'DEP' : i === last ? 'ARR' : pad(i)}</span>
+      <div class="ac"><input class="f-port" value="${esc(p.name)}" placeholder="${ph}" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-label="${ph}"><ul class="ac-list" role="listbox" hidden></ul></div>
+      ${i === 0 ? '<span class="dist-wrap"></span>' : `<div class="dist-wrap"><input class="f-dist num" type="number" min="0" step="1" value="${p.dist ?? ''}" placeholder="nm" aria-label="Distance from previous port, nm"><span class="src"></span></div>`}
+      <input class="f-stay num" type="number" min="0" step="1" value="${ends ? '' : esc(p.stay)}" ${ends ? 'disabled' : 'placeholder="stay h"'} aria-label="Port stay, hours">
+      <input class="f-tz num" type="number" min="-12" max="14" step="0.5" value="${esc(p.tz)}" placeholder="UTC±" aria-label="Local time offset from UTC">
+      ${ends ? '<span></span>' : '<button class="rm" type="button" title="Remove port call" aria-label="Remove port call">×</button>'}
+    </div>`;
+  }).join('');
+  S.ports.forEach((_, i) => syncLeg(i));
 }
-document.querySelectorAll('input').forEach(el=>el.oninput=calculate);calculate();
-
-function switchView(v){
-    document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
-    if(v==='saved'){
-        document.getElementById('viewSaved').classList.add('active');
-        document.querySelectorAll('.nav-btn')[1].classList.add('active');
-        renderSaved();
-    }else{
-        document.getElementById('viewCalc').classList.add('active');
-        document.querySelectorAll('.nav-btn')[0].classList.add('active');
-    }
+function syncLeg(i){
+  if (i < 1 || i >= S.ports.length) return;
+  const row = $(`#route .rrow[data-i="${i}"]`);
+  if (!row) return;
+  const inp = row.querySelector('.f-dist'), tag = row.querySelector('.src');
+  if (document.activeElement !== inp) inp.value = S.ports[i].dist ?? '';
+  const s = srcOf(i);
+  tag.className = 'src ' + s;
+  tag.textContent = s === 'man' ? 'man' : '';
+  tag.title = s === 'man' ? 'Entered manually — clear to restore the sea-route distance' : '';
 }
 
-function resetAll(){
-    ['voyageNo','loadPort','dischPort'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('distance').value=0;document.getElementById('speed').value=12;
-    document.getElementById('tzOffset').value=0;document.getElementById('weatherDelay').value=0;
-    calculate();
+function update(){
+  const r = compute();
+  renderSummary(r);
+  renderSchedule(r);
+  store.set(KEY.draft, S);
 }
 
-function saveVoyage(){
-    const dist=parseFloat(document.getElementById('distance').value)||0;
-    if(dist<=0){alert('Invalid data');return}
-    const voyages=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');
-    voyages.push({
-        voyageNo:document.getElementById('voyageNo').value||'N/A',
-        loadPort:document.getElementById('loadPort').value||'N/A',
-        dischPort:document.getElementById('dischPort').value||'N/A',
-        departure:document.getElementById('departure').value,
-        distance:document.getElementById('distance').value,
-        speed:document.getElementById('speed').value,
-        etaUtc:document.getElementById('resEtaUtc').textContent,
-        etaLocal:document.getElementById('resEtaLocal').textContent,
-        duration:document.getElementById('resDuration').textContent,
-        weatherDelay:document.getElementById('weatherDelay').value+'%'
-    });
-    localStorage.setItem('captainEtaVoyages',JSON.stringify(voyages));
-    alert('Voyage Secured ⚓');
+function renderSummary(r){
+  const destName = city(r.dest.name);
+  $('#sumLabel').textContent = destName ? `ETA ${destName}` : 'ETA';
+  if (r.complete && r.eta != null){
+    $('#sumEta').innerHTML = `${fmtDate(r.eta)}<br>${fmtTime(r.eta)}<small>UTC</small>`;
+    $('#sumSub').textContent = r.dest.tz != null ? `${fmtShort(r.eta + r.dest.tz*H)} LT (${fmtTz(r.dest.tz)})` : '';
+  } else {
+    $('#sumEta').textContent = '—';
+    $('#sumSub').textContent = !(r.spd > 0) ? 'Enter speed' : r.etd == null ? 'Enter ETD' : 'Complete route distances';
+  }
+  const dash = '<span class="muted">—</span>';
+  const fig = [
+    ['Distance', r.dist > 0 ? `${nf(r.dist)} nm` : dash],
+    ['Sea time', r.complete ? `${fmtDur(r.seaH)} <small>(${nf(r.seaH/24, 2)} d)</small>` : dash],
+  ];
+  if (r.portH > 0) fig.push(['Port time', fmtDur(r.portH)]);
+  if (r.portH > 0) fig.push(['Total voyage', r.complete ? fmtDur(r.seaH + r.portH) : dash]);
+  if (r.margin) fig.push(['Effective speed', r.spd > 0 ? `${nf(r.spd/(1+r.margin/100), 2)} kn` : dash]);
+  fig.push(['Fuel at sea', r.complete && r.fuel != null ? `${nf(r.fuel, 1)} mt` : dash]);
+  fig.push(['CO₂', r.complete && r.co2 != null ? `${nf(r.co2, 1)} t` : dash]);
+  $('#sumFigs').innerHTML = fig.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  $('#sumNote').textContent = S.cape ? 'Routing via the Cape of Good Hope.' : '';
+  ['#btnSave', '#btnCopy', '#btnPdf'].forEach(s => $(s).disabled = !r.complete);
 }
 
-function renderSaved(){
-    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]'),w=document.getElementById('svTableWrap');
-    if(!v.length){w.innerHTML='<p style="text-align:center;padding:2rem;color:var(--text-muted)">No records found.</p>';return}
-    let h='<table><thead><tr><th>#</th><th>Voyage</th><th>Route</th><th>Dist</th><th>Dur</th><th>ETA UTC</th><th>ETA Local</th><th></th></tr></thead><tbody>';
-    v.forEach((x,i)=>h+=`<tr><td>${i+1}</td><td>${x.voyageNo}</td><td>${x.loadPort} → ${x.dischPort}</td><td>${x.distance} NM</td><td>${x.duration}</td><td>${x.etaUtc}</td><td>${x.etaLocal}</td><td><button onclick="delVoyage(${i})" style="background:none;border:none;color:var(--error);cursor:pointer">✕</button></td></tr>`);
-    h+='</tbody></table>';w.innerHTML=h;
+function renderSchedule(r){
+  const last = r.rows.length - 1;
+  const lt = (ms, tz) => ms != null && tz != null ? fmtShort(ms + tz*H) : '<span class="muted">—</span>';
+  const dt = ms => ms != null ? fmtShort(ms) : '<span class="muted">—</span>';
+  const body = r.rows.map(x => {
+    const nm = x.name ? esc(x.name) : '<span class="muted">—</span>';
+    if (x.i === 0) return `<tr><td class="m muted">DEP</td><td>${nm}</td><td class="n muted">—</td><td class="n muted">—</td><td class="m muted">—</td><td class="m muted">—</td><td class="n muted">—</td><td class="m">${dt(x.dep)}</td><td class="m">${lt(x.dep, x.tz)}</td></tr>`;
+    const fin = x.i === last;
+    return `<tr class="${fin ? 'final' : ''}"><td class="m muted">${fin ? 'ARR' : pad(x.i)}</td><td>${nm}</td>
+      <td class="n">${x.dist > 0 ? nf(x.dist) + (x.src === 'man' ? '<span class="tag">man</span>' : '') : '<span class="muted">—</span>'}</td>
+      <td class="n">${x.hrs != null ? fmtDur(x.hrs) : '<span class="muted">—</span>'}</td>
+      <td class="m">${dt(x.arr)}</td><td class="m">${lt(x.arr, x.tz)}</td>
+      <td class="n">${fin ? '<span class="muted">—</span>' : x.stay ? x.stay + ' h' : '0 h'}</td>
+      <td class="m">${fin ? '<span class="muted">—</span>' : dt(x.dep)}</td><td class="m">${fin ? '<span class="muted">—</span>' : lt(x.dep, x.tz)}</td></tr>`;
+  }).join('');
+  $('#schedule').innerHTML = `<table><thead><tr><th></th><th>Port</th><th class="n">Dist. (nm)</th><th class="n">Sea time</th><th>ETA (UTC)</th><th>ETA (LT)</th><th class="n">Stay</th><th>ETD (UTC)</th><th>ETD (LT)</th></tr></thead><tbody>${body}</tbody></table>`;
 }
-function delVoyage(i){const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');v.splice(i,1);localStorage.setItem('captainEtaVoyages',JSON.stringify(v));renderSaved()}
-function clearAll(){if(confirm('Clear all?')){localStorage.removeItem('captainEtaVoyages');renderSaved()}}
 
-function exportPDF(){
-    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');if(!v.length)return;
-    const{jsPDF}=window.jspdf;const doc=new jsPDF('l','mm','a4');
-    doc.text('Captain ETA Records',14,15);
-    doc.autoTable({head:[['Voyage','Route','Dist','ETA UTC']],body:v.map(x=>[x.voyageNo,x.loadPort+'->'+x.dischPort,x.distance,x.etaUtc])});
-    doc.save('voyages.pdf');
+/* ---------- route editor events ---------- */
+const routeEl = $('#route');
+routeEl.addEventListener('input', e => {
+  const row = e.target.closest('.rrow'); if (!row) return;
+  const i = +row.dataset.i, p = S.ports[i], cl = e.target.classList;
+  if (cl.contains('f-port')){
+    p.name = e.target.value;
+    refreshAutoDist(i); refreshAutoDist(i+1); syncLeg(i); syncLeg(i+1);
+    openAC(e.target, i);
+  } else if (cl.contains('f-dist')){
+    const v = num(e.target.value);
+    if (v == null){ p.manual = false; refreshAutoDist(i) } else { p.manual = true; p.dist = v }
+    syncLeg(i);
+  } else if (cl.contains('f-stay')) p.stay = e.target.value;
+  else if (cl.contains('f-tz')) p.tz = e.target.value;
+  update();
+});
+routeEl.addEventListener('focusout', e => {
+  if (e.target.classList.contains('f-port')){
+    const i = +e.target.closest('.rrow').dataset.i;
+    const canon = resolvePort(e.target.value);
+    if (canon && canon !== e.target.value){ e.target.value = S.ports[i].name = canon; update() }
+    setTimeout(() => closeAC(e.target), 120);
+  }
+  if (e.target.classList.contains('f-dist')) syncLeg(+e.target.closest('.rrow').dataset.i);
+});
+routeEl.addEventListener('click', e => {
+  if (e.target.classList.contains('rm')){
+    const i = +e.target.closest('.rrow').dataset.i;
+    S.ports.splice(i, 1);
+    S.ports[i].manual = false;            // leg now starts from a different port
+    refreshAutoDist(i);
+    renderRoute(); update();
+  }
+});
+$('#addPort').onclick = () => {
+  const at = S.ports.length - 1;
+  S.ports.splice(at, 0, newPort());
+  S.ports[at+1].manual = false;
+  refreshAutoDist(at+1);
+  renderRoute(); update();
+  $(`#route .rrow[data-i="${at}"] .f-port`).focus();
+};
+
+/* ---------- autocomplete ---------- */
+function openAC(inp, i){
+  const list = inp.nextElementSibling;
+  const items = searchPorts(inp.value);
+  if (!items.length || (items.length === 1 && items[0] === inp.value)) return closeAC(inp);
+  const prev = i > 0 ? S.ports[i-1].name : null;
+  list.innerHTML = items.map((p, k) => {
+    const d = prev ? legLookup(prev, p) : null;
+    const [c, ...rest] = p.split(',');
+    return `<li role="option" data-v="${esc(p)}" aria-selected="${k === 0}"><div>${esc(c)}<span>,${esc(rest.join(','))}</span></div>${d && d.dist != null ? `<small>${nf(d.dist)} nm</small>` : ''}</li>`;
+  }).join('');
+  list.hidden = false; inp.setAttribute('aria-expanded', 'true');
 }
-function exportXLSX(){
-    const v=JSON.parse(localStorage.getItem('captainEtaVoyages')||'[]');if(!v.length)return;
-    const ws=XLSX.utils.json_to_sheet(v);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Voyages');
-    XLSX.writeFile(wb,'voyages.xlsx');
+function closeAC(inp){ const l = inp.nextElementSibling; if (l){ l.hidden = true; inp.setAttribute('aria-expanded', 'false') } }
+function pickAC(inp, val){
+  const i = +inp.closest('.rrow').dataset.i;
+  inp.value = S.ports[i].name = val;
+  refreshAutoDist(i); refreshAutoDist(i+1); syncLeg(i); syncLeg(i+1);
+  closeAC(inp); update();
 }
+routeEl.addEventListener('mousedown', e => {
+  const li = e.target.closest('.ac-list li'); if (!li) return;
+  e.preventDefault();
+  const inp = li.closest('.ac').querySelector('input');
+  pickAC(inp, li.dataset.v);
+  const next = inp.closest('.rrow').nextElementSibling?.querySelector('.f-port');
+  if (next && !next.value) next.focus();
+});
+routeEl.addEventListener('keydown', e => {
+  if (!e.target.classList.contains('f-port')) return;
+  const list = e.target.nextElementSibling;
+  if (list.hidden) return;
+  const opts = [...list.children], cur = opts.findIndex(o => o.getAttribute('aria-selected') === 'true');
+  const sel = k => { opts.forEach((o, j) => o.setAttribute('aria-selected', j === k)); opts[k]?.scrollIntoView({ block:'nearest' }) };
+  if (e.key === 'ArrowDown'){ e.preventDefault(); sel(Math.min(cur+1, opts.length-1)) }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); sel(Math.max(cur-1, 0)) }
+  else if (e.key === 'Enter' || e.key === 'Tab'){ if (cur >= 0){ if (e.key === 'Enter') e.preventDefault(); pickAC(e.target, opts[cur].dataset.v) } }
+  else if (e.key === 'Escape') closeAC(e.target);
+});
+
+/* ---------- route options ---------- */
+document.querySelectorAll('[data-opt]').forEach(el => {
+  el.checked = !!S[el.dataset.opt];
+  el.addEventListener('change', () => {
+    S[el.dataset.opt] = el.checked;
+    S.ports.forEach((_, i) => { refreshAutoDist(i); syncLeg(i) });
+    update();
+  });
+});
+
+/* ---------- simple fields ---------- */
+document.querySelectorAll('[data-k]').forEach(el => {
+  el.value = S[el.dataset.k] ?? '';
+  el.addEventListener('input', () => { S[el.dataset.k] = el.value; update() });
+});
+$('#etdNow').onclick = () => { S.etd = $('#etd').value = utcInputValue(Math.floor(Date.now()/60000)*60000); update() };
+
+/* ---------- actions ---------- */
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+const routeStr = (ports, sep=' → ') => ports.map(p => city(p.name) || '?').join(sep);
+
+function etaMessage(){
+  const r = compute(), last = r.rows.length - 1;
+  const up = s => (city(s) || '—').toUpperCase();
+  const L = [];
+  const head = [S.vessel && 'MV ' + S.vessel.toUpperCase().replace(/^MV\s+/, ''), S.voyage && 'VOY ' + S.voyage].filter(Boolean).join(' / ');
+  if (head) L.push(head);
+  const lt = (ms, tz) => tz != null ? ` / ${fmtTlx(ms + tz*H).slice(-4)} LT (${fmtTz(tz).replace('−', '-')})` : '';
+  r.rows.forEach(x => {
+    if (x.i > 0) L.push(`ETA ${up(x.name)} ${fmtTlx(x.arr)} UTC${lt(x.arr, x.tz)}`);
+    if (x.i < last) L.push(`ETD ${up(x.name)} ${fmtTlx(x.dep)} UTC${lt(x.dep, x.tz)}`);
+  });
+  L.push(`DIST ${nf(r.dist)} NM AT ${nf(r.spd, 1)} KN${r.margin ? `, SEA MARGIN ${r.margin}%` : ''}`);
+  if (S.cape) L.push('ROUTEING VIA CAPE OF GOOD HOPE');
+  L.push('ETA WP/AGW');
+  return L.join('\n');
+}
+$('#btnCopy').onclick = async () => {
+  const txt = etaMessage();
+  try { await navigator.clipboard.writeText(txt) }
+  catch(e){ const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove() }
+  toast('ETA message copied');
+};
+
+$('#btnPdf').onclick = () => {
+  if (!window.jspdf) return toast('PDF library not loaded (offline?)');
+  const r = compute(), last = r.rows.length - 1;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const asc = s => String(s).replace(/−/g, '-').replace(/→/g, '-');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text('Voyage Estimate', 14, 18);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
+  doc.text(`Generated ${fmtDate(Date.now())} ${fmtTime(Date.now())} UTC`, 196, 18, { align:'right' });
+  doc.setTextColor(0);
+  const info = [
+    ['Vessel', S.vessel || '-', 'Distance', `${nf(r.dist)} nm`],
+    ['Voyage', S.voyage || '-', 'Sea time', `${fmtDur(r.seaH)} (${nf(r.seaH/24, 2)} d)`],
+    ['Route', asc(routeStr(S.ports, ' - ')), 'Port time', r.portH ? fmtDur(r.portH) : '-'],
+    ['Speed', `${nf(r.spd, 1)} kn`, 'Fuel at sea', r.fuel != null ? `${nf(r.fuel, 1)} mt` : '-'],
+    ['Sea margin', `${r.margin} %`, 'CO2', r.co2 != null ? `${nf(r.co2, 1)} t` : '-'],
+  ];
+  doc.autoTable({ startY:24, body:info, theme:'plain', styles:{ fontSize:9, cellPadding:1.2 },
+    columnStyles:{ 0:{ textColor:110, cellWidth:24 }, 1:{ cellWidth:68 }, 2:{ textColor:110, cellWidth:24 } } });
+  const ltS = (ms, tz) => ms != null && tz != null ? fmtShort(ms + tz*H) : '-';
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 6,
+    head: [['', 'Port', 'Dist nm', 'Sea time', 'ETA UTC', 'ETA LT', 'Stay', 'ETD UTC', 'ETD LT']],
+    body: r.rows.map(x => [
+      x.i === 0 ? 'DEP' : x.i === last ? 'ARR' : pad(x.i), x.name || '-',
+      x.i ? nf(x.dist) + (x.src === 'man' ? '*' : '') : '', x.i ? fmtDur(x.hrs) : '',
+      x.i ? fmtShort(x.arr) : '', x.i ? ltS(x.arr, x.tz) : '',
+      x.i && x.i < last ? x.stay + ' h' : '',
+      x.i < last ? fmtShort(x.dep) : '', x.i < last ? ltS(x.dep, x.tz) : ''
+    ]),
+    theme:'grid', styles:{ fontSize:8, cellPadding:1.6, lineColor:200, lineWidth:.1 },
+    headStyles:{ fillColor:[240,242,245], textColor:40, fontStyle:'bold' },
+    columnStyles:{ 2:{ halign:'right' }, 3:{ halign:'right' }, 6:{ halign:'right' } }
+  });
+  let y = doc.lastAutoTable.finalY + 6;
+  doc.setFontSize(8); doc.setTextColor(110);
+  if (r.rows.some(x => x.src === 'man')){ doc.text('* Distance entered manually.', 14, y); y += 4 }
+  const routing = [S.kiel ? 'via Kiel Canal / Oresund' : '', S.cape ? 'via Cape of Good Hope' : ''].filter(Boolean).join(', ');
+  if (routing){ doc.text('Routeing: ' + routing + '.', 14, y); y += 4 }
+  doc.text('All ETAs weather permitting / all going well (WP/AGW).', 14, y);
+  const fn = ['ETA', S.vessel, S.voyage].filter(Boolean).join('_').replace(/[^\w-]+/g, '_');
+  doc.save(fn + '.pdf');
+};
+
+$('#btnSave').onclick = () => {
+  const r = compute();
+  const recs = store.get(KEY.rec, []);
+  recs.unshift({ id:Date.now(), savedAt:Date.now(), state:JSON.parse(JSON.stringify(S)),
+    sum:{ route:routeStr(S.ports), dist:r.dist, etd:r.etd, eta:r.eta, seaH:r.seaH, fuel:r.fuel } });
+  store.set(KEY.rec, recs);
+  renderRecords(); toast('Voyage saved');
+};
+$('#btnReset').onclick = () => {
+  if (!confirm('Clear the current voyage?')) return;
+  S = blankState(); loadIntoForm();
+};
+function loadIntoForm(){
+  S.ports.forEach((_, i) => refreshAutoDist(i));
+  document.querySelectorAll('[data-k]').forEach(el => el.value = S[el.dataset.k] ?? '');
+  document.querySelectorAll('[data-opt]').forEach(el => el.checked = !!S[el.dataset.opt]);
+  renderRoute(); update();
+}
+
+/* ---------- records ---------- */
+function renderRecords(){
+  const recs = store.get(KEY.rec, []);
+  $('#recCount').textContent = recs.length || '';
+  if (!recs.length){ $('#records').innerHTML = '<p class="empty">No saved voyages. Save one from the planner.</p>'; return }
+  const dt = ms => ms != null ? fmtShort(ms) : '—';
+  $('#records').innerHTML = `<table><thead><tr><th>Vessel</th><th>Voy.</th><th>Route</th><th class="n">Dist. (nm)</th><th>ETD (UTC)</th><th>ETA (UTC)</th><th class="n">Sea time</th><th></th></tr></thead><tbody>${
+    recs.map(x => `<tr data-id="${x.id}"><td>${esc(x.state.vessel) || '<span class="muted">—</span>'}</td><td class="m">${esc(x.state.voyage) || '<span class="muted">—</span>'}</td>
+      <td>${esc(x.sum.route)}</td><td class="n">${nf(x.sum.dist || 0)}</td><td class="m">${dt(x.sum.etd)}</td><td class="m">${dt(x.sum.eta)}</td>
+      <td class="n">${x.sum.seaH ? fmtDur(x.sum.seaH) : '—'}</td>
+      <td><div class="row-actions"><button class="link" data-act="open">Open</button><button class="link del" data-act="del">Delete</button></div></td></tr>`).join('')
+  }</tbody></table>`;
+}
+$('#records').addEventListener('click', e => {
+  const act = e.target.dataset.act; if (!act) return;
+  const id = +e.target.closest('tr').dataset.id;
+  let recs = store.get(KEY.rec, []);
+  const rec = recs.find(x => x.id === id);
+  if (act === 'open' && rec){ S = JSON.parse(JSON.stringify(rec.state)); loadIntoForm(); showView('plan') }
+  if (act === 'del' && confirm('Delete this voyage?')){ store.set(KEY.rec, recs.filter(x => x.id !== id)); renderRecords() }
+});
+$('#btnCsv').onclick = () => {
+  const recs = store.get(KEY.rec, []);
+  if (!recs.length) return toast('No saved voyages');
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const iso = ms => ms != null ? new Date(ms).toISOString().slice(0,16).replace('T', ' ') : '';
+  const rows = [['Vessel','Voyage','Route','Distance_nm','Speed_kn','Sea_margin_pct','ETD_UTC','ETA_UTC','Sea_time_h','Fuel_mt']]
+    .concat(recs.map(x => [x.state.vessel, x.state.voyage, x.sum.route.replace(/→/g, '-'), x.sum.dist, x.state.speed, x.state.margin,
+      iso(x.sum.etd), iso(x.sum.eta), x.sum.seaH ? x.sum.seaH.toFixed(1) : '', x.sum.fuel != null ? x.sum.fuel.toFixed(1) : '']));
+  const blob = new Blob(['﻿' + rows.map(r => r.map(q).join(',')).join('\r\n')], { type:'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'captain_eta_voyages.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// One-time import of records saved by the previous version
+(function migrate(){
+  const old = store.get(KEY.legacy, null);
+  if (!old || store.get(KEY.rec, null)) return;
+  const recs = old.map((o, k) => {
+    const st = blankState();
+    Object.assign(st, { voyage:o.voyageNo === 'N/A' ? '' : o.voyageNo, etd:o.departure || st.etd, speed:String(o.speed || 12), margin:String(parseFloat(o.weatherDelay) || 0) });
+    st.ports = [{ ...newPort(), name:o.loadPort === 'N/A' ? '' : o.loadPort }, { ...newPort(), name:o.dischPort === 'N/A' ? '' : o.dischPort, dist:o.distance, manual:true }];
+    const etd = Date.parse(st.etd + ':00Z'), seaH = o.distance / (parseFloat(o.speed) || 12) * (1 + (parseFloat(o.weatherDelay) || 0)/100);
+    return { id:Date.now() + k, savedAt:Date.now(), state:st, sum:{ route:routeStr(st.ports), dist:o.distance, etd, eta:etd + seaH*H, seaH, fuel:null } };
+  });
+  store.set(KEY.rec, recs);
+})();
+
+/* ---------- views, clock, theme ---------- */
+function showView(v){
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.view === v));
+  $('#view-plan').hidden = v !== 'plan';
+  $('#view-records').hidden = v !== 'records';
+  if (v === 'records') renderRecords();
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => showView(t.dataset.view));
+
+function tick(){ const n = new Date(); $('#utc').textContent = pad(n.getUTCHours()) + ':' + pad(n.getUTCMinutes()) }
+tick(); setInterval(tick, 5000);
+
+$('#themeBtn').onclick = () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem(KEY.theme, t) } catch(e){}
+};
+
+S.ports.forEach((_, i) => refreshAutoDist(i));
+renderRoute(); update(); renderRecords();
 </script>
 </body>
 </html>
