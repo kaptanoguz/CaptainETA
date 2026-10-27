@@ -2,6 +2,8 @@
 
 Voyage ETA and passage-schedule calculator for ship operations. Single page, no build step — open `index.html` in a browser.
 
+![Captain ETA: Istanbul → Rotterdam → Hamburg voyage with ETA, sea time, fuel and CO₂](docs/screenshots/planner.png)
+
 ## What it does
 - **Multi-port route** with port stays — ETA/ETD for every call, in UTC and local time (per-port UTC offset).
 - **Sea-route distances** between all built-in ports, precomputed berth to berth (see below). Any leg can be overridden manually (`man`).
