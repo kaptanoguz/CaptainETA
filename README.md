@@ -2,8 +2,6 @@
 
 Voyage ETA and passage-schedule calculator for ship operations. Single page, no build step — open `index.html` in a browser.
 
-*Gemi operasyonları için sefer ETA / ETD ve seyir planı hesaplayıcı: limanlar arası deniz mesafesi, liman kalışları, yakıt ve CO₂, acenteye ETA mesajı ve PDF. Kurulum gerekmez, tarayıcıda çalışır.*
-
 ![Captain ETA: Istanbul → Rotterdam → Hamburg voyage with ETA, sea time, fuel and CO₂](docs/screenshots/planner.png)
 
 ## What it does
